@@ -13,7 +13,7 @@ public class ScrollModInterface {
 		return this.toJson();
 	}
 	
-	private String modId;
+	public String modId;
 	
 	public ScrollRegistry ITEMS;
 	public ScrollRegistry BLOCKS;

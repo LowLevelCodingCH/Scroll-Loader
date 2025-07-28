@@ -1,5 +1,6 @@
 package ch.llcch.nx.scroll.loader;
 
+import ch.llcch.nx.scroll.api.ScrollModInterface;
 import ch.llcch.nx.scroll.main.Bootstrap;
 import ch.llcch.nx.scroll.transform.ScrollClassTransformer;
 
@@ -16,30 +17,12 @@ import java.util.jar.JarFile;
 
 import org.apache.bcel.classfile.ClassFormatException;
 
-/**
- * Replaced classloader
- * 
- * @author  Alexander R. O.
- * @version 0.0.2
- * @since   0.0.2
- */
 public class ScrollClassLoader extends URLClassLoader {
 	public ScrollClassLoader(URL[] urls, ClassLoader cl) {
 		super(urls, cl);
 	}
 
-	/**
-	 * The already loaded class names
-	 */
     private final Set<String> loadedNames = ConcurrentHashMap.newKeySet();
-    
-    /**
-     * The classes which should go through the transformation pipeline
-     */
-    private static final Set<String> SYSTEM_LOAD = Set.of(
-            //
-    );
-    
     private static boolean shouldDelegate(String name) {
         return !(name.startsWith("net.minecraft.") 
                 || name.startsWith("com.mojang.blaze3d.") 
@@ -64,24 +47,16 @@ public class ScrollClassLoader extends URLClassLoader {
                     }
                 }
             } catch (Exception e) {
-                e.printStackTrace(); // Log errors in resource discovery
+                e.printStackTrace();
             }
         }
 
         return null;
     }
 
-    /**
-     * The first (and for some last) stop in the pipeline - Classes that have been chosen to be transformed will get to this.findClass, others get super.loadClass'ed
-     * 
-     * @return Class object
-     * @param resolve If the class should be resolved
-     * @param name Class name (format: tld.domain.package.Class).
-     */
     @Override
     public Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-        // First, check if class already loaded
-        Class<?> c = findLoadedClass(name);
+    	Class<?> c = findLoadedClass(name);
         if (c == null) {
             if (shouldDelegate(name)) {
                 c = getParent().loadClass(name);
@@ -99,11 +74,11 @@ public class ScrollClassLoader extends URLClassLoader {
         return c;
     }
     
-    public Class<?> loadClass(byte[] arr, String name, boolean resolve) throws ClassNotFoundException {
+    public Class<?> loadClass(byte[] arr, String name, boolean resolve, ScrollModInterface[] modInterfaces) throws ClassNotFoundException {
         if (shouldDelegate(name))
             return Bootstrap.ORIGINAL_CLASSLOADER.loadClass(name);
         
-    	return findClass(arr, name);
+    	return findClass(arr, name, modInterfaces);
     }
     
     @Override
@@ -114,20 +89,13 @@ public class ScrollClassLoader extends URLClassLoader {
         return loadClass(name, false);
     }
     
-    public Class<?> loadClass(byte[] arr, String name) throws ClassNotFoundException {
+    public Class<?> loadClass(byte[] arr, String name, ScrollModInterface[] modInterfaces) throws ClassNotFoundException {
         if (shouldDelegate(name))
             return Bootstrap.ORIGINAL_CLASSLOADER.loadClass(name);
         
-        return loadClass(arr, name, false);
+        return loadClass(arr, name, false, modInterfaces);
     }
 
-    /**
-     * Finds a class, transforms it and defines it
-     * 
-     * @return Class of the transformed class
-     * @throws ClassNotFoundException
-     * @param name Class name (format: tld.domain.package.Class).
-     */
     @Override
     protected Class<?> findClass(String name) throws ClassNotFoundException {
         if (loadedNames.contains(name)) {
@@ -163,7 +131,7 @@ public class ScrollClassLoader extends URLClassLoader {
         byte[] classBytes = buffer.toByteArray();
         byte[] transformed = null;
 		try {
-			transformed = ScrollClassTransformer.transformClass(classBytes, name);
+			transformed = ScrollClassTransformer.transformClass(classBytes, name, null);
 		} catch (ClassFormatException | IOException e) {
 			Bootstrap.LOGGER.err(">> Could not load Class " + name);
 			e.printStackTrace();
@@ -173,7 +141,7 @@ public class ScrollClassLoader extends URLClassLoader {
         return defineClass(name, transformed, 0, transformed.length);
     }
     
-    protected Class<?> findClass(byte[] arr, String name) throws ClassNotFoundException {
+    protected Class<?> findClass(byte[] arr, String name, ScrollModInterface[] modInterfaces) throws ClassNotFoundException {
         if (loadedNames.contains(name)) {
             return findLoadedClass(name);
         }
@@ -183,11 +151,15 @@ public class ScrollClassLoader extends URLClassLoader {
         byte[] classBytes = arr;
         byte[] transformed = null;
 		try {
-			transformed = ScrollClassTransformer.transformClass(classBytes, name);
+			transformed = ScrollClassTransformer.transformClass(classBytes, name, modInterfaces);
 		} catch (ClassFormatException | IOException e) {
 			e.printStackTrace();
 		}
 		Bootstrap.LOGGER.info(">> Defining class: " + name);
         return defineClass(name, transformed, 0, transformed.length);
+    }
+    
+    public Class<?> defineClass(String name, byte[] bytes) {
+        return super.defineClass(name, bytes, 0, bytes.length);
     }
 }

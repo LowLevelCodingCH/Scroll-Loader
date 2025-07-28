@@ -1,12 +1,5 @@
 package ch.llcch.nx.scroll.logger;
 
-/**
- * Simple logger, no documentation necessary
- * 
- * @author  Alexander R. O.
- * @version 0.0.2
- * @since   0.0.1
- */
 public class ScrollLogger {
     String name;
 
